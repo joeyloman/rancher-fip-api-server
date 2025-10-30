@@ -1,0 +1,216 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rancher-fip-api-server
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - projects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rancher.k8s.binbash.org
+  resources:
+  - floatingips
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rancher-fip-api-server
+subjects:
+- kind: ServiceAccount
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+roleRef:
+  kind: ClusterRole
+  name: rancher-fip-api-server
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+  labels:
+    app: rancher-fip-api-server
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups: ["coordination.k8s.io"]
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+  labels:
+    app: rancher-fip-api-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rancher-fip-api-server
+subjects:
+- kind: ServiceAccount
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: rancher-fip-api-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: rancher-fip-api-server
+    spec:
+      serviceAccountName: rancher-fip-api-server
+      containers:
+      - name: rancher-fip-api-server
+        image: ghcr.io/joeyloman/rancher-fip-api-server:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: https
+          containerPort: 8443
+          protocol: TCP
+        args:
+          - --jwt-generate-key=true
+          - --jwt-secret-name=jwt-private-key
+          - --jwt-secret-namespace=rancher-fip-manager
+          - --leader-elect=true
+          - --lease-lock-name=rancher-fip-api-server-lock
+          - --lease-lock-namespace=rancher-fip-manager
+          - --listen-address=:8443
+          - --tls-enabled=true
+          - --tls-cert-file=/etc/tls/tls.crt
+          - --tls-key-file=/etc/tls/tls.key
+        volumeMounts:
+          - name: tls-secret-volume
+            mountPath: /etc/tls
+            readOnly: true
+      volumes:
+      - name: tls-secret-volume
+        secret:
+          secretName: rancher-fip-api-server-tls
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: rancher-fip-api-server
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rancher-fip-api-server
+  namespace: rancher-fip-manager
+spec:
+  selector:
+    app: rancher-fip-api-server
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: rancher-fip-api-server
+  name: rancher-fip-api-server-nodeport
+  namespace: rancher-fip-manager
+spec:
+  ports:
+    - name: https
+      nodePort: 30001
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+  selector:
+    app: rancher-fip-api-server
+  sessionAffinity: None
+  type: NodePort
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rancher-fip-api-server-ingress
+  namespace: rancher-fip-manager
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  rules:
+  - host: rancher-fip-api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rancher-fip-api-server
+            port:
+              number: 8443
+  tls:
+  - hosts:
+    - rancher.example.com
+    secretName: 	rancher-fip-api-server-tls

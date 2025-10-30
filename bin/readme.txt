@@ -1,0 +1,1 @@
+This directory is used in the Makefile to produce and store the compiled binary.
