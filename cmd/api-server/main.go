@@ -164,7 +164,7 @@ func run(ctx context.Context, log *logrus.Logger, config *rest.Config, clientset
 		if k8serrors.IsNotFound(err) {
 			if jwtGenerateKey {
 				// Generate the private key
-				privateKey, err := auth.GeneratePrivateKey()
+				privateKey, err = auth.GeneratePrivateKey()
 				if err != nil {
 					log.Fatalf("Failed to generate private key: %v", err)
 				}
