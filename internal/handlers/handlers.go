@@ -349,14 +349,8 @@ func FIPReleaseHandler(app *types.App) http.HandlerFunc {
 		delete(fipToUpdate.Labels, "rancher.k8s.binbash.org/cluster-name")
 		delete(fipToUpdate.Labels, "rancher.k8s.binbash.org/service-name")
 		delete(fipToUpdate.Labels, "rancher.k8s.binbash.org/service-namespace")
-		fipToUpdate.Status.Assigned = nil
-		fipToUpdate.Status.Conditions = []metav1.Condition{
-			{
-				Type:    "Released",
-				Status:  "True",
-				Message: "IP successfully released",
-			},
-		}
+
+		// the status assigned and conditions will be updated by the rancher-fip-manager controller
 
 		err = app.FipRestClient.Update(r.Context(), &fipToUpdate)
 		if err != nil {
