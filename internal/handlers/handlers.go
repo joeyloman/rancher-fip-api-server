@@ -419,10 +419,11 @@ func FIPListHandler(app *types.App) http.HandlerFunc {
 			return
 		}
 
-		// List all floating IPs for the project
+		// List all floating IPs for the project and cluster
 		fipList := &fipv1beta1.FloatingIPList{}
 		err = app.FipRestClient.List(r.Context(), fipList, client.InNamespace(project.Namespace), client.MatchingLabels{
 			"rancher.k8s.binbash.org/project-name": fipListRequest.Project,
+			"rancher.k8s.binbash.org/cluster-name": fipListRequest.Cluster,
 		})
 		if err != nil {
 			app.Log.Errorf("failed to list floatingips: %s", err.Error())
