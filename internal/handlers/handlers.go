@@ -419,11 +419,10 @@ func FIPListHandler(app *types.App) http.HandlerFunc {
 			return
 		}
 
-		// List all floating IPs for the project and cluster
+		// List all floating IPs for the project
 		fipList := &fipv1beta1.FloatingIPList{}
 		err = app.FipRestClient.List(r.Context(), fipList, client.InNamespace(project.Namespace), client.MatchingLabels{
 			"rancher.k8s.binbash.org/project-name": fipListRequest.Project,
-			"rancher.k8s.binbash.org/cluster-name": fipListRequest.Cluster,
 		})
 		if err != nil {
 			app.Log.Errorf("failed to list floatingips: %s", err.Error())
@@ -435,15 +434,18 @@ func FIPListHandler(app *types.App) http.HandlerFunc {
 		for _, item := range fipList.Items {
 			if item.Spec.FloatingIPPool == fipListRequest.FloatingIPPool {
 				if item.Spec.IPAddr != nil {
-					fip := types.FloatingIP{
-						Project:          item.Labels["rancher.k8s.binbash.org/project-name"],
-						Cluster:          item.Labels["rancher.k8s.binbash.org/cluster-name"],
-						FloatingIPPool:   item.Spec.FloatingIPPool,
-						ServiceNamespace: item.Labels["rancher.k8s.binbash.org/service-namespace"],
-						ServiceName:      item.Labels["rancher.k8s.binbash.org/service-name"],
-						IPAddress:        *item.Spec.IPAddr,
+					// Only return the floating IP if it is assigned to the cluster or if the cluster is not specified
+					if item.Labels["rancher.k8s.binbash.org/cluster-name"] == fipListRequest.Cluster || item.Status.Assigned == nil {
+						fip := types.FloatingIP{
+							Project:          item.Labels["rancher.k8s.binbash.org/project-name"],
+							Cluster:          item.Labels["rancher.k8s.binbash.org/cluster-name"],
+							FloatingIPPool:   item.Spec.FloatingIPPool,
+							ServiceNamespace: item.Labels["rancher.k8s.binbash.org/service-namespace"],
+							ServiceName:      item.Labels["rancher.k8s.binbash.org/service-name"],
+							IPAddress:        *item.Spec.IPAddr,
+						}
+						floatingIPs = append(floatingIPs, fip)
 					}
-					floatingIPs = append(floatingIPs, fip)
 				}
 			}
 		}
