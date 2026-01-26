@@ -71,6 +71,8 @@ type FIPResponse struct {
 	ServiceName string `json:"servicename"`
 	// IPAddress is the allocated floating IP address.
 	IPAddress string `json:"ipaddr"`
+	// Subnet is the subnet from which to allocate the IP.
+	Subnet string `json:"subnet"`
 }
 
 // FIPReleaseRequest defines the structure for a floating IP release request.

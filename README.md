@@ -69,7 +69,7 @@ The server exposes the following endpoints (as implemented in code):
       "ipaddr": "<optional-specific-ip>"
     }
     ```
-  - Response: `{ "status": "approved", "cluster": "...", "project": "...", "floatingippool": "...", "servicenamespace": "...", "servicename": "...", "ipaddr": "<allocated-ip>" }`
+  - Response: `{ "status": "approved", "cluster": "...", "project": "...", "floatingippool": "...", "servicenamespace": "...", "servicename": "...", "ipaddr": "<allocated-ip>", "subnet": "<subnet>" }`
 
 - `POST /v1/fip/release` (Authorization: `Bearer <JWT>`)
   - Request:

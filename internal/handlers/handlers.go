@@ -258,6 +258,14 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 			return
 		}
 
+		// Get the subnet from the floating IP pool
+		fipPool := fipv1beta1.FloatingIPPool{}
+		if err := app.FipRestClient.Get(r.Context(), client.ObjectKey{Name: fipRequest.FloatingIPPool}, &fipPool); err != nil {
+			app.Log.Errorf("failed to get floatingippool subnet: %s", err.Error())
+			errors.WriteJSONError(w, http.StatusInternalServerError, "failed to get floatingippool subnet")
+			return
+		}
+
 		fipResponse := types.FIPResponse{
 			Status:           "approved",
 			ClientSecret:     fipRequest.ClientSecret,
@@ -267,6 +275,7 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 			ServiceNamespace: fipRequest.ServiceNamespace,
 			ServiceName:      fipRequest.ServiceName,
 			IPAddress:        ip,
+			Subnet:           fipPool.Spec.IPConfig.Subnet,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
