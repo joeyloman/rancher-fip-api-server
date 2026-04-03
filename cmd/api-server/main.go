@@ -17,7 +17,7 @@ import (
 	"github.com/joeyloman/rancher-fip-api-server/internal/handlers"
 	"github.com/joeyloman/rancher-fip-api-server/internal/middleware"
 	"github.com/joeyloman/rancher-fip-api-server/pkg/types"
-	fipv1beta1 "github.com/joeyloman/rancher-fip-manager/pkg/apis/rancher.k8s.binbash.org/v1beta1"
+	fipv1beta2 "github.com/joeyloman/rancher-fip-manager/pkg/apis/rancher.k8s.binbash.org/v1beta2"
 	"github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -181,7 +181,7 @@ func run(ctx context.Context, log *logrus.Logger, config *rest.Config, clientset
 	}
 
 	fipScheme := runtime.NewScheme()
-	fipv1beta1.AddToScheme(fipScheme)
+	fipv1beta2.AddToScheme(fipScheme)
 
 	fipRestClient, err := client.New(config, client.Options{
 		Scheme: fipScheme,

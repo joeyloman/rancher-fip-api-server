@@ -1,0 +1,121 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: floatingippools.rancher.k8s.binbash.org
+spec:
+  group: rancher.k8s.binbash.org
+  versions:
+    - name: v1beta2
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                ipConfig:
+                  type: object
+                  required:
+                    - subnet
+                    - pool
+                  properties:
+                    family:
+                      type: string
+                    subnet:
+                      type: string
+                    pool:
+                      type: object
+                      required:
+                        - start
+                        - end
+                      properties:
+                        start:
+                          type: string
+                        end:
+                          type: string
+                        exclude:
+                          type: array
+                          items:
+                            type: string
+                targetCluster:
+                  type: string
+                targetNetwork:
+                  type: string
+                targetNetworkInterface:
+                  type: string
+            status:
+              type: object
+              properties:
+                allocated:
+                  type: object
+                  additionalProperties:
+                    type: string
+                used:
+                  type: integer
+                available:
+                  type: integer
+      subresources:
+        status: {}
+    - name: v1beta1
+      served: true
+      storage: false
+      deprecated: true
+      deprecationWarning: "rancher.k8s.binbash.org/v1beta1 FloatingIPPool is deprecated"
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                ipConfig:
+                  type: object
+                  required:
+                    - subnet
+                    - pool
+                  properties:
+                    family:
+                      type: string
+                    subnet:
+                      type: string
+                    pool:
+                      type: object
+                      required:
+                        - start
+                        - end
+                      properties:
+                        start:
+                          type: string
+                        end:
+                          type: string
+                        exclude:
+                          type: array
+                          items:
+                            type: string
+                targetCluster:
+                  type: string
+                targetNetwork:
+                  type: string
+                targetNetworkInterface:
+                  type: string
+            status:
+              type: object
+              properties:
+                allocated:
+                  type: object
+                  additionalProperties:
+                    type: string
+                used:
+                  type: integer
+                available:
+                  type: integer
+      subresources:
+        status: {}
+  scope: Cluster
+  names:
+    plural: floatingippools
+    singular: floatingippool
+    kind: FloatingIPPool
+    listKind: FloatingIPPoolList
