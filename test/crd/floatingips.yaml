@@ -5,9 +5,85 @@ metadata:
 spec:
   group: rancher.k8s.binbash.org
   versions:
-    - name: v1beta1
+    - name: v1beta2
       served: true
       storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - floatingIPPool
+              properties:
+                ipAddr:
+                  type: string
+                floatingIPPool:
+                  type: string
+            status:
+              type: object
+              properties:
+                ipAddr:
+                  type: string
+                state:
+                  type: string
+                floatingipGroup:
+                  type: string
+                sharedKey:
+                  type: string
+                assigned:
+                  type: object
+                  properties:
+                    clusterName:
+                      type: string
+                    projectName:
+                      type: string
+                    floatingIPGroup:
+                      type: string
+                    sharedKey:
+                      type: string
+                    services:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          serviceNamespace:
+                            type: string
+                          serviceName:
+                            type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - lastTransitionTime
+                      - reason
+                      - message
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+      subresources:
+        status: {}
+    - name: v1beta1
+      served: true
+      storage: false
+      deprecated: true
+      deprecationWarning: "rancher.k8s.binbash.org/v1beta1 FloatingIP is deprecated"
       schema:
         openAPIV3Schema:
           type: object
@@ -32,6 +108,8 @@ spec:
                   type: object
                   properties:
                     clusterName:
+                      type: string
+                    projectName:
                       type: string
                     serviceNamespace:
                       type: string

@@ -49,6 +49,8 @@ type FIPRequest struct {
 	ServiceName string `json:"servicename"`
 	// IPAddress is a specific IP address to request, if desired.
 	IPAddress string `json:"ipaddr,omitempty"`
+	// FloatingIPGroup determines of it is a shared IP request
+	FloatingIPGroup string `json:"floatingipgroup,omitempty"`
 }
 
 // FIPResponse defines the structure for the response to a floating IP request.
@@ -73,6 +75,10 @@ type FIPResponse struct {
 	IPAddress string `json:"ipaddr"`
 	// Subnet is the subnet from which to allocate the IP.
 	Subnet string `json:"subnet"`
+	// FloatingIPGroup determines of it is a shared IP request
+	FloatingIPGroup string `json:"floatingipgroup,omitempty"`
+	// SharedKey is a unique idetifier for the load balancer solution annotation group
+	SharedKey string `json:"sharedkey,omitempty"`
 }
 
 // FIPReleaseRequest defines the structure for a floating IP release request.
@@ -91,6 +97,8 @@ type FIPReleaseRequest struct {
 	ServiceName string `json:"servicename"`
 	// IPAddress is the floating IP address to release.
 	IPAddress string `json:"ipaddr"`
+	// FloatingIPGroup determines of it is a shared IP request
+	FloatingIPGroup string `json:"floatingipgroup,omitempty"`
 }
 
 // FIPReleaseResponse defines the structure for the response to a floating IP release request.
@@ -139,6 +147,8 @@ type FloatingIP struct {
 	ServiceName string `json:"servicename"`
 	// IPAddress is the floating IP address.
 	IPAddress string `json:"ipaddr"`
+	// FloatingIPGroup is the group identifier for shared IP requests.
+	FloatingIPGroup string `json:"floatingipgroup,omitempty"`
 }
 
 // FIPDeleteRequest defines the structure for a floating IP delete request.

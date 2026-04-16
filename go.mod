@@ -6,7 +6,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/joeyloman/rancher-fip-manager v0.0.0-20251028110528-b767fb06e6e1
+	github.com/joeyloman/rancher-fip-manager v0.5.0
 	github.com/rancher/rancher/pkg/apis v0.0.0-20251030105332-f0e856e503c1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
