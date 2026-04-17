@@ -146,14 +146,14 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 			var existingFIP *fipv1beta2.FloatingIP
 			for i := range fipList.Items {
 				// Check of the FloatingIP belongs to the project and equals the requested IP
-				if fipList.Items[i].Labels["rancher.k8s.binbash.org/project-name"] == project.Name && fipList.Items[i].Spec.IPAddr != nil && *fipList.Items[i].Spec.IPAddr == fipRequest.IPAddress {
+				if fipList.Items[i].Labels["rancher.k8s.binbash.org/project-name"] == fipRequest.Project && fipList.Items[i].Spec.IPAddr != nil && *fipList.Items[i].Spec.IPAddr == fipRequest.IPAddress {
 					existingFIP = &fipList.Items[i]
 					break
 				}
 			}
 
 			if existingFIP != nil {
-				// FIP with requested IP exists
+				// FIP with requested IP exists within the project
 				if existingFIP.Status.Assigned != nil {
 					// Check if FloatingIPGroup is set in Status.Assigned
 					if existingFIP.Status.Assigned.FloatingIPGroup == "" {
@@ -170,6 +170,12 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 							app.Log.Errorf("requested FloatingIPGroup %s does not match assigned FloatingIPGroup %s", fipRequest.FloatingIPGroup, existingFIP.Status.Assigned.FloatingIPGroup)
 							return
 						}
+					}
+					// Check if the existingFIP is already assigned to a different cluster-name
+					if existingFIP.Status.Assigned.ClusterName != fipRequest.Cluster {
+						errors.WriteJSONError(w, http.StatusConflict, "FloatingIP is already in use by another cluster")
+						app.Log.Errorf("requested ClusterName %s does not match assigned ClusterName %s", fipRequest.Cluster, existingFIP.Status.Assigned.ClusterName)
+						return
 					}
 				}
 
@@ -205,8 +211,7 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 			} else {
 				// FIP with requested IP does not exist, so create it
 
-				// Note: if there is a given IPAddress requested we don't check if the FloatingIPGroup already exists within other FIPs in the project
-				// This is checked/handled in the rancher-fip-manager-webhook
+				// Note: we allow to have FloatingIPGroups with the same name in different FloatingIPs
 
 				fipLabels := make(map[string]string)
 				fipLabels["rancher.k8s.binbash.org/project-name"] = project.Name
@@ -247,21 +252,21 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 			}
 
 			var existingFIP *fipv1beta2.FloatingIP
-			// first check if the fipRequest has a FloatingIPGroup set and search if the group already exists within the project
+			// First check if the fipRequest has a FloatingIPGroup set and search if the group already exists within the project and assigned to the cluster
 			for i := range fipList.Items {
 				if fipRequest.FloatingIPGroup != "" {
-					if fipList.Items[i].Labels["rancher.k8s.binbash.org/project-name"] == project.Name && fipList.Items[i].Status.Assigned != nil && fipList.Items[i].Status.Assigned.FloatingIPGroup == fipRequest.FloatingIPGroup {
-						// we found a FloatingIPGroup match within the project so we need to use this fip
+					if fipList.Items[i].Labels["rancher.k8s.binbash.org/project-name"] == fipRequest.Project && fipList.Items[i].Labels["rancher.k8s.binbash.org/cluster-name"] == fipRequest.Cluster && fipList.Items[i].Status.Assigned != nil && fipList.Items[i].Status.Assigned.FloatingIPGroup == fipRequest.FloatingIPGroup {
+						// We found a FloatingIPGroup match within the project and assigned to the cluster so we need to use this fip
 						existingFIP = &fipList.Items[i]
 						break
 					}
 				}
 			}
-			// if the existingFIP is not set we can search for an unassigned FloatingIP within the project
+			// If the existingFIP is not set we can search for an unassigned FloatingIP within the project
 			if existingFIP == nil {
 				for i := range fipList.Items {
 					// Check of the FloatingIP belongs to the project and is not assigned
-					if fipList.Items[i].Labels["rancher.k8s.binbash.org/project-name"] == project.Name && fipList.Items[i].Status.IPAddr != "" && fipList.Items[i].Status.Assigned == nil {
+					if fipList.Items[i].Labels["rancher.k8s.binbash.org/project-name"] == fipRequest.Project && fipList.Items[i].Status.IPAddr != "" && fipList.Items[i].Status.Assigned == nil {
 						existingFIP = &fipList.Items[i]
 						break
 					}
