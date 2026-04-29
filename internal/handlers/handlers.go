@@ -179,12 +179,6 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 					}
 				}
 
-				// If no FloatingIPGroup is specified in the request and the IP already exists, decline the request
-				if fipRequest.FloatingIPGroup == "" {
-					errors.WriteJSONError(w, http.StatusConflict, "IP address already exists and no FloatingIPGroup specified")
-					app.Log.Errorf("requested ip %s already exists and no FloatingIPGroup specified", fipRequest.IPAddress)
-					return
-				}
 				// It exists but is not assigned, so we can use it.
 				floatingIP = existingFIP
 				if floatingIP.Labels == nil {
