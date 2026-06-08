@@ -46,6 +46,25 @@ func getNextServiceID(labels map[string]string) string {
 	return "0"
 }
 
+// serviceAlreadyExists checks if a service with the given name and namespace
+// already exists in the labels. It scans all service-<id>-name and
+// service-<id>-namespace label pairs for a match.
+func serviceAlreadyExists(labels map[string]string, serviceName, serviceNamespace string) bool {
+	for key, val := range labels {
+		if strings.HasPrefix(key, "rancher.k8s.binbash.org/service-") && strings.HasSuffix(key, "-name") {
+			if val == serviceName {
+				// Extract the service ID from the label key (e.g., "service-0-name" -> "0")
+				serviceID := strings.TrimPrefix(strings.TrimSuffix(key, "-name"), "rancher.k8s.binbash.org/service-")
+				namespaceKey := "rancher.k8s.binbash.org/service-" + serviceID + "-namespace"
+				if nsVal, ok := labels[namespaceKey]; ok && nsVal == serviceNamespace {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // TokenHandler handles requests for authentication tokens.
 // It generates a JWT signed with the application's private key.
 func TokenHandler(app *types.App) http.HandlerFunc {
@@ -187,10 +206,16 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 				floatingIP.Labels["rancher.k8s.binbash.org/project-name"] = project.Name
 				floatingIP.Labels["rancher.k8s.binbash.org/cluster-name"] = fipRequest.Cluster
 
-				// Determine the service ID to use
-				serviceID := getNextServiceID(floatingIP.Labels)
-				floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-name"] = fipRequest.ServiceName
-				floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-namespace"] = fipRequest.ServiceNamespace
+				// Check if the service already exists in the labels to avoid duplicates
+				if !serviceAlreadyExists(floatingIP.Labels, fipRequest.ServiceName, fipRequest.ServiceNamespace) {
+					// Determine the service ID to use
+					serviceID := getNextServiceID(floatingIP.Labels)
+					floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-name"] = fipRequest.ServiceName
+					floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-namespace"] = fipRequest.ServiceNamespace
+				} else {
+					app.Log.Errorf("Service %s/%s already exists in FloatingIP %s/%s, skipping duplicate label addition",
+						fipRequest.ServiceNamespace, fipRequest.ServiceName, floatingIP.Namespace, floatingIP.Name)
+				}
 
 				if fipRequest.FloatingIPGroup != "" {
 					floatingIP.Labels["rancher.k8s.binbash.org/floatingip-group"] = fipRequest.FloatingIPGroup
@@ -276,10 +301,16 @@ func FIPRequestHandler(app *types.App) http.HandlerFunc {
 				floatingIP.Labels["rancher.k8s.binbash.org/project-name"] = project.Name
 				floatingIP.Labels["rancher.k8s.binbash.org/cluster-name"] = fipRequest.Cluster
 
-				// Determine the service ID to use
-				serviceID := getNextServiceID(floatingIP.Labels)
-				floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-name"] = fipRequest.ServiceName
-				floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-namespace"] = fipRequest.ServiceNamespace
+				// Check if the service already exists in the labels to avoid duplicates
+				if !serviceAlreadyExists(floatingIP.Labels, fipRequest.ServiceName, fipRequest.ServiceNamespace) {
+					// Determine the service ID to use
+					serviceID := getNextServiceID(floatingIP.Labels)
+					floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-name"] = fipRequest.ServiceName
+					floatingIP.Labels["rancher.k8s.binbash.org/service-"+serviceID+"-namespace"] = fipRequest.ServiceNamespace
+				} else {
+					app.Log.Errorf("Service %s/%s already exists in FloatingIP %s/%s, skipping duplicate label addition",
+						fipRequest.ServiceNamespace, fipRequest.ServiceName, floatingIP.Namespace, floatingIP.Name)
+				}
 
 				if fipRequest.FloatingIPGroup != "" {
 					floatingIP.Labels["rancher.k8s.binbash.org/floatingip-group"] = fipRequest.FloatingIPGroup

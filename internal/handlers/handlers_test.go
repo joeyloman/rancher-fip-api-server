@@ -1218,6 +1218,151 @@ func TestFIPReleaseWithMultipleServicesAndFloatingIPGroup(t *testing.T) {
 	assert.Contains(t, fipUpdated.Labels, "rancher.k8s.binbash.org/cluster-name")
 }
 
+// TestFIPRequestWithDuplicateServiceLabels tests that requesting the same service
+// on an existing unassigned FIP does not create duplicate service labels.
+// This tests the scenario where the same service name/namespace pair is requested
+// twice on the same FIP (e.g., due to retry or re-request before the controller
+// sets Status.Assigned).
+func TestFIPRequestWithDuplicateServiceLabels(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a namespace for the test.
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{GenerateName: "test-dup-svc-"},
+	}
+	require.NoError(t, app.FipRestClient.Create(ctx, ns))
+	defer app.FipRestClient.Delete(ctx, ns)
+
+	// Create a project object.
+	gvr := schema.GroupVersionResource{
+		Group:    "management.cattle.io",
+		Version:  "v3",
+		Resource: "projects",
+	}
+	projectName := "test-project-dup-svc"
+	project := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "management.cattle.io/v3",
+			"kind":       "Project",
+			"metadata": map[string]interface{}{
+				"name":      projectName,
+				"namespace": ns.GetName(),
+			},
+		},
+	}
+	_, err := app.DynamicClient.Resource(gvr).Namespace(ns.GetName()).Create(ctx, project, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create a FloatingIPPool object (cluster-scoped).
+	fipPoolGVR := schema.GroupVersionResource{
+		Group:    "rancher.k8s.binbash.org",
+		Version:  "v1beta2",
+		Resource: "floatingippools",
+	}
+	fipPool := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "rancher.k8s.binbash.org/v1beta2",
+			"kind":       "FloatingIPPool",
+			"metadata": map[string]interface{}{
+				"name": "test-network-dup-svc",
+			},
+			"spec": map[string]interface{}{
+				"ipConfig": map[string]interface{}{
+					"family": "IPv4",
+					"subnet": "10.99.0.0/24",
+					"pool": map[string]interface{}{
+						"start": "10.99.0.1",
+						"end":   "10.99.0.254",
+					},
+				},
+			},
+		},
+	}
+	_, err = app.DynamicClient.Resource(fipPoolGVR).Create(ctx, fipPool, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create a FloatingIP that is unassigned (Status.IPAddr set but Status.Assigned is nil)
+	// with service-0 already set to rke2-traefik/kube-system
+	ipAddr := "10.99.0.1"
+	fip := &fipv1beta2.FloatingIP{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "fip-",
+			Namespace:    ns.GetName(),
+			Labels: map[string]string{
+				"rancher.k8s.binbash.org/project-name":        projectName,
+				"rancher.k8s.binbash.org/cluster-name":        "test-cluster",
+				"rancher.k8s.binbash.org/service-0-name":      "rke2-traefik",
+				"rancher.k8s.binbash.org/service-0-namespace": "kube-system",
+			},
+		},
+		Spec: fipv1beta2.FloatingIPSpec{
+			IPAddr:         &ipAddr,
+			FloatingIPPool: "test-network-dup-svc",
+		},
+		Status: fipv1beta2.FloatingIPStatus{
+			IPAddr: ipAddr,
+		},
+	}
+	require.NoError(t, app.FipRestClient.Create(ctx, fip))
+
+	// Now request the same service (rke2-traefik/kube-system) on the same IP
+	// This simulates a retry or re-request scenario
+	fipRequest := &types.FIPRequest{
+		Project:          projectName,
+		FloatingIPPool:   "test-network-dup-svc",
+		ServiceName:      "rke2-traefik",
+		ServiceNamespace: "kube-system",
+		Cluster:          "test-cluster",
+		IPAddress:        "10.99.0.1",
+	}
+	body, err := json.Marshal(fipRequest)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/fip/request", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	// Simulate the FIP controller allocating an IP.
+	go func() {
+		fipList := &fipv1beta2.FloatingIPList{}
+		for {
+			err := app.FipRestClient.List(ctx, fipList, &client.ListOptions{Namespace: ns.GetName()})
+			if err == nil && len(fipList.Items) > 0 {
+				fip := fipList.Items[0]
+				fip.Status.IPAddr = fipRequest.IPAddress
+				if err := app.FipRestClient.Status().Update(ctx, &fip); err == nil {
+					break
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	FIPRequestHandler(app)(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verify the FloatingIP does NOT have duplicate service labels
+	fipList := &fipv1beta2.FloatingIPList{}
+	err = app.FipRestClient.List(ctx, fipList, &client.ListOptions{Namespace: ns.GetName()})
+	require.NoError(t, err)
+	require.Len(t, fipList.Items, 1)
+
+	fipUpdated := fipList.Items[0]
+
+	// Should have exactly one service-0-name label (no service-1-name duplicate)
+	assert.Contains(t, fipUpdated.Labels, "rancher.k8s.binbash.org/service-0-name")
+	assert.Equal(t, "rke2-traefik", fipUpdated.Labels["rancher.k8s.binbash.org/service-0-name"])
+	assert.Equal(t, "kube-system", fipUpdated.Labels["rancher.k8s.binbash.org/service-0-namespace"])
+
+	// Should NOT have a duplicate service-1 label
+	assert.NotContains(t, fipUpdated.Labels, "rancher.k8s.binbash.org/service-1-name")
+	assert.NotContains(t, fipUpdated.Labels, "rancher.k8s.binbash.org/service-1-namespace")
+
+	// Cluster and project labels should still be present
+	assert.Equal(t, "test-cluster", fipUpdated.Labels["rancher.k8s.binbash.org/cluster-name"])
+	assert.Equal(t, projectName, fipUpdated.Labels["rancher.k8s.binbash.org/project-name"])
+}
+
 // TestFIPRequestWithDifferentClusterName tests that when a FloatingIP is already assigned
 // to a cluster, requesting the same IP with a different ClusterName returns StatusConflict.
 func TestFIPRequestWithDifferentClusterName(t *testing.T) {
